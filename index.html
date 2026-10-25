@@ -110,6 +110,261 @@ nav {
   transition: transform .25s ease, box-shadow .25s ease;
 }
 
+<script>
+(function () {
+  // 🌸 Puffies: Design-Update
+  const style = document.createElement("style");
+  style.textContent = `
+    body {
+      background:
+        radial-gradient(ellipse at 8% 10%, #f1e8ff, transparent 32%),
+        radial-gradient(ellipse at 94% 40%, #e3f8ef, transparent 28%),
+        #fff9fd !important;
+      color: #392b50;
+    }
+    .topline, .top, .announcement {
+      background: linear-gradient(90deg,#7657e8,#b28be9,#edadd5) !important;
+      color: white !important;
+    }
+    .brand, .logo { color: #8563e9 !important; }
+    .heroart, .art {
+      background: linear-gradient(135deg,#eee5ff,#fce8f4,#e0f8ed) !important;
+    }
+    .card {
+      border-radius: 24px !important;
+      border: 1px solid #eee4f8 !important;
+      box-shadow: 0 7px 22px #4c306f08 !important;
+      transition: transform .2s, box-shadow .2s;
+    }
+    .card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 18px 36px #694c9720 !important;
+    }
+    .pimage, .photo, .visual {
+      background: linear-gradient(145deg,#f0e8ff,#fceaf4,#e5f8ef) !important;
+      border-radius: 18px !important;
+    }
+    .story {
+      background: linear-gradient(125deg,#f0e9ff,#fcecf5,#e9f9f0) !important;
+      border-radius: 28px !important;
+    }
+    .btn, .addbtn {
+      background: linear-gradient(135deg,#a18afa,#7958e7) !important;
+      color: white !important;
+      border-radius: 14px !important;
+      transition: transform .18s;
+    }
+    .btn:hover, .addbtn:hover {
+      transform: translateY(-2px);
+    }
+    .drawer {
+      box-shadow: -15px 0 45px #22143a20 !important;
+    }
+    #cartOverlay.open, #overlay.open, #basket.open {
+      display: flex !important;
+    }
+  `;
+  document.head.appendChild(style);
+
+  // 🛒 Warenkorb-Fix für die vorhandenen Puffies-Buttons
+  const $ = id => document.getElementById(id);
+  const productKeys = [
+    "puffies_products_v1",
+    "puffies-products-v3",
+    "puffies-products"
+  ];
+  const cartKeys = [
+    "puffies_cart_v1",
+    "puffies-cart-v3",
+    "puffies-cart"
+  ];
+
+  function read(key) {
+    try { return JSON.parse(localStorage.getItem(key) || "null"); }
+    catch { return null; }
+  }
+
+  function products() {
+    for (const key of productKeys) {
+      const value = read(key);
+      if (Array.isArray(value) && value.length) return value;
+    }
+    return [];
+  }
+
+  function cartStore() {
+    for (const key of cartKeys) {
+      const value = read(key);
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (Object.keys(value).length) return { key, value };
+      }
+    }
+    return { key: cartKeys[0], value: {} };
+  }
+
+  function saveCart(cart) {
+    const store = cartStore();
+    try { localStorage.setItem(store.key, JSON.stringify(cart)); }
+    catch {}
+  }
+
+  function money(value) {
+    return new Intl.NumberFormat("de-AT", {
+      style: "currency", currency: "EUR"
+    }).format(Number(value) || 0);
+  }
+
+  function openCart() {
+    const overlay = $("cartOverlay") || $("overlay") || $("basket");
+    if (!overlay) {
+      alert("Der Warenkorb wurde auf dieser Seite nicht gefunden.");
+      return;
+    }
+    renderCart();
+    overlay.hidden = false;
+    overlay.classList.add("open");
+    overlay.style.display = "flex";
+  }
+
+  function closeCart() {
+    const overlay = $("cartOverlay") || $("overlay") || $("basket");
+    if (!overlay) return;
+    overlay.classList.remove("open");
+    overlay.style.display = "none";
+  }
+
+  function renderCart() {
+    const holder = $("cartItems") || $("items");
+    if (!holder) return;
+
+    const list = products();
+    const store = cartStore();
+    const cart = store.value;
+    const entries = Object.entries(cart)
+      .map(([id, qty]) => ({
+        id,
+        qty: Number(qty) || 0,
+        product: list.find(p => String(p.id) === String(id))
+      }))
+      .filter(x => x.product && x.qty > 0);
+
+    const count = $("cartCount") || $("count");
+    if (count) count.textContent =
+      entries.reduce((sum, x) => sum + x.qty, 0);
+
+    holder.innerHTML = entries.length
+      ? entries.map(x => `
+        <div class="cartitem">
+          <div class="cartdesc">
+            <b>${x.product.name}</b>
+            <p>${money(x.product.price)} pro Stück</p>
+            <button type="button" data-puffies-minus="${x.id}">−</button>
+            <b>${x.qty}</b>
+            <button type="button" data-puffies-plus="${x.id}">＋</button>
+            <button type="button" data-puffies-remove="${x.id}">
+              Entfernen
+            </button>
+          </div>
+        </div>
+      `).join("")
+      : '<p>🛍️ Dein Warenkorb ist leer.</p>';
+
+    const bottom = $("cartBottom") || $("bottom");
+    if (bottom) bottom.hidden = !entries.length;
+
+    const total = $("cartTotal") || $("total");
+    if (total) {
+      const sum = entries.reduce(
+        (n, x) => n + (Number(x.product.price) || 0) * x.qty, 0
+      );
+      total.textContent = money(sum);
+    }
+  }
+
+  document.addEventListener("click", function (event) {
+    const button = event.target.closest("button, a");
+    if (!button) return;
+
+    const inside = button.closest("#cartOverlay, #overlay, #basket");
+    const text = (button.textContent || "").trim().toLowerCase();
+
+    const add = button.closest(
+      "[data-add], .card .addbtn, .card .add"
+    );
+
+    if (add && !inside) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const id = String(add.dataset.add || "");
+      const list = products();
+      const product = list.find(p => String(p.id) === id);
+
+      if (!product) {
+        alert("Produkt nicht gefunden. Bitte lade die Website neu.");
+        return;
+      }
+
+      const store = cartStore();
+      const cart = store.value;
+      cart[id] = (Number(cart[id]) || 0) + 1;
+      saveCart(cart);
+      openCart();
+      return;
+    }
+
+    if (button.matches("#cartOpen, #openCart, #cartButton") ||
+        (!inside && text.includes("warenkorb") &&
+         !text.includes("in den warenkorb") &&
+         !text.includes("warenkorb leeren"))) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      openCart();
+      return;
+    }
+
+    if (inside && button.matches("#cartClose, #cartCloseBtn, #closeCart, .close")) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeCart();
+      return;
+    }
+
+    const minus = button.closest("[data-puffies-minus]");
+    const plus = button.closest("[data-puffies-plus]");
+    const remove = button.closest("[data-puffies-remove]");
+
+    if (minus || plus || remove) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+
+      const control = minus || plus || remove;
+      const id = control.getAttribute(
+        minus ? "data-puffies-minus" :
+        plus ? "data-puffies-plus" : "data-puffies-remove"
+      );
+
+      const store = cartStore();
+      const cart = store.value;
+
+      if (minus) {
+        cart[id] = (Number(cart[id]) || 0) - 1;
+        if (cart[id] <= 0) delete cart[id];
+      } else if (plus) {
+        cart[id] = (Number(cart[id]) || 0) + 1;
+      } else {
+        delete cart[id];
+      }
+
+      saveCart(cart);
+      renderCart();
+    }
+  }, true);
+
+  renderCart();
+})();
+</script>
+
 .card:hover {
   transform: translateY(-6px);
   box-shadow: 0 18px 36px rgba(105, 76, 151, .13);
